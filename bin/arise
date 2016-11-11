@@ -1,5 +1,9 @@
 #!/bin/zsh
 
+ME="${0:t}"
+BINDIR="${0:A:h}"
+SYSDIR="${BINDIR}/.."
+
 for x in "$@"; do
-	awake -f systems/"${x}"
+	awake -f "${SYSDIR}/${x}"
 done
