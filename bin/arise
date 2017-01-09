@@ -20,7 +20,7 @@ class	Arise( object ):
 		else:
 			try:
 				cmd = [
-					'/bin/echo',
+					# '/bin/echo',
 					'/bin/awake',
 					hosts.hosts[host]
 				]
