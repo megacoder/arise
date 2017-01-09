@@ -55,6 +55,7 @@ class	Miner( object ):
 			fn = os.path.join( 'systems', host )
 			with open( fn, 'w' ) as f:
 				print >>f, '{0}'.format( self.hosts[ host ] )
+			os.chmod( fn, 0644 )
 			os.chown( fn, self.uid, self.gid )
 			stat = os.stat( fn )
 			print '{0:03o}{1:03o} {2:07o} {3}'.format(
