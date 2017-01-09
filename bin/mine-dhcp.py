@@ -4,30 +4,37 @@
 import	sys
 import	os
 import	pwd
+import	socket
 
 class	Miner( object ):
 
 	def	__init__( self, whoami = None ):
-		self.hosts = dict()
-		try:
-			for host in os.listdir( 'hosts' ):
-				with open( os.path.join( 'hosts', host ) ) as f:
-					self.hosts[ host ] = f.readline().strip()
-		except:
-			pass
+		self.host2mac = dict()
+		self.mac2host = dict()
 		if not whoami:
 			whoami = os.getenv( 'SUDO_USER' )
 			if whoami:
 				self.uid = int( os.getenv( 'SUDO_UID' ) )
 				self.gid = int( os.getenv( 'SUDO_GID' ) )
 		if not whoami:
-			whoami = os.getenv( 'USER' )
-			pw_ent = pwd.getpwnam( whoami )
+			whoami   = os.getenv( 'USER' )
+			pw_ent   = pwd.getpwnam( whoami )
 			self.uid = pw_ent.st_uid
 			self.gid = pw_ent.st_gid
 		return
 
-	def	load( self, fn = '/etc/dhcp/dhcpd.conf' ):
+	def	checkin_mac( self, host, mac ):
+		if mac in self.mac2host and self.mac2host[mac] != host:
+			print >>sys.stderr, 'MAC clash: {0:>32} {1:<32}'.format(
+				self.mac2host[ mac ],
+				host
+			)
+		else:
+			self.mac2host[ mac ] = host
+		self.host2mac[ host ] = mac
+		return
+
+	def	import_dhcpd( self, fn = '/etc/dhcp/dhcpd.conf' ):
 		host = None
 		with open( fn ) as f:
 			for line in f:
@@ -46,40 +53,63 @@ class	Miner( object ):
 					if tokens[0] == 'hardware' and tokens[1] == 'ethernet':
 						if host:
 							MAC = tokens[2].lower()
-							self.hosts[ host ] = MAC
+							self.checkin_mac( host, MAC )
 							host = None
 		return
 
-	def	export( self ):
-		for host in sorted( self.hosts ):
-			fn = os.path.join( 'systems', host )
-			with open( fn, 'w' ) as f:
-				print >>f, '{0}'.format( self.hosts[ host ] )
-			os.chown( fn, self.uid, self.gid )
-			stat = os.stat( fn )
-			print '{0:03o}{1:03o} {2:07o} {3}'.format(
-				stat.st_uid,
-				stat.st_gid,
-				stat.st_mode,
-				fn
-			)
-		return
+	def	import_leases( self, leases = '/var/lib/dhcpd/dhcpd.leases' ):
+		host = None
+		with open( leases ) as f:
+			for line in f:
+				line = line.replace( ';', '' )
+				tokens = line.split( '#', 1 )[0].split()
+				Ltokens = len( tokens )
+				# print 'Ltokens={0}, tokens={1}'.format( Ltokens, tokens )
+				if Ltokens and tokens[ 0 ] == 'lease':
+					host_ip = tokens[ 1 ]
+					try:
+						(
+							host, aliaslist, ipaddrlist
+						) = socket.gethostbyaddr( host_ip )
+					except:
+						host = None
+				elif Ltokens >= 3 and tokens[ 0 ] == 'hardware' and tokens[ 1 ] == 'ethernet':
+					mac = tokens[ 2 ].lower()
+					if host:
+						self.checkin_mac( host, mac )
+						host = None
 
-	def	report( self ):
+	def	export( self ):
 		width = max(
 			map(
 				len,
-				self.hosts
+				self.host2mac
 			)
 		)
-		fmt = '{{0:>{0}}} {{1}}'.format( width )
-		for host in sorted( self.hosts ):
-			print fmt.format( host, self.hosts[host] )
+		fmt = '    {{0:>{0}s}} : "{{1}}",'.format( width + 2 )
+		hosts_fn = os.path.join(
+			os.path.dirname( __file__ ),
+			'hosts.py'
+		)
+		with open( hosts_fn, 'w' ) as f:
+			print >>f, 'hosts =\t{'
+			for host in sorted( self.host2mac ):
+				print >>f, fmt.format(
+					'"{0}"'.format( host ),
+					self.host2mac[ host ]
+				)
+			print >>f, '}'
+		os.chmod( hosts_fn, 0644 )
+		os.chown( hosts_fn, self.uid, self.gid )
+		return
+
+	def	report( self ):
 		return
 
 if __name__ == '__main__':
 	m = Miner()
-	m.load()
+	m.import_dhcpd()
+	m.import_leases()
 	m.export()
 	m.report()
 	exit( 0 )

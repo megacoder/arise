@@ -1,8 +1,84 @@
-#!/bin/zsh
+#!/usr/bin/python
+# vim: noet sw=4 ts=4
 
-BINDIR="${0:a:h}"
-SYSDIR="${BINDIR}/../systems"
+import	sys
+import	os
+import	subprocess
 
-for x in "$@"; do
-	awake -f "${SYSDIR}/${x}"
-done
+import	hosts
+
+class	Arise( object ):
+
+	def	__init__( self ):
+		self.succeeded = dict()
+		self.failed    = dict()
+		return
+
+	def	wakeup( self, host ):
+		if host not in hosts.hosts:
+			self.failed[ host ] = "Don't know anything about host."
+		else:
+			try:
+				cmd = [
+					# '/bin/echo',
+					'/bin/awake',
+					hosts.hosts[host]
+				]
+				out = subprocess.check_output(
+					cmd,
+					stderr = subprocess.STDOUT
+				)
+				self.succeeded[ host ] = out
+			except subprocess.CalledProcessError, e:
+				cli = ' '.join( cmd )
+				self.failed[ host ] = 'Failed to awaken: {0}'.format( host ) + '\n' + e.output
+			except Exception, e:
+				self.failed[ host ] = 'DUNNO'
+		return
+
+	def	report( self ):
+		width = max(
+			map(
+				len,
+				self.succeeded
+			) +
+			map(
+				len,
+				self.failed
+			)
+		)
+		fmt = '{{0:>{0}s}}  {{1}}'.format( width + 1 )
+		# print 'fmt={0}'.format( fmt )
+		if len( self. failed ):
+			print
+			title = '*** FAILED ***'
+			print fmt.format( title, '' )
+			print fmt.format( '=' * len( title ), '' )
+			for host in sorted( self.failed ):
+				prefix = host
+				for line in self.failed[ host ].splitlines():
+					print fmt.format( prefix, line )
+					prefix = ''
+		if len( self.succeeded ):
+			print
+			title = 'Succeeded'
+			print fmt.format( title, '' )
+			print fmt.format( '=' * len(title), '' )
+			for host in sorted( self.succeeded ):
+				prefix = host
+				for line in self.succeeded[ host ].splitlines():
+					print fmt.format( prefix, line )
+					prefix = ''
+		return
+
+if __name__ == '__main__':
+	opts = {}
+	args = sys.argv[1:]
+	if len(args) == 0:
+		print >>sys.stderr, 'No hostnames given'
+		exit( 1 )
+	ar = Arise()
+	for host in args:
+		ar.wakeup( host )
+	ar.report()
+	exit( 0 )
