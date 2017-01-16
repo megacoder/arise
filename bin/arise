@@ -14,6 +14,15 @@ class	Arise( object ):
 		self.failed    = dict()
 		return
 
+	def	which_hosts( self, passed = True ):
+		if passed:
+			for key in sorted( self.succeeded ):
+				yield key,self.succeeded[key]
+		else:
+			for key in sorted( self.failed ):
+				yield key,self.succeeded[key]
+		return
+
 	def	wakeup( self, host ):
 		if host not in hosts.hosts:
 			self.failed[ host ] = "Don't know anything about host."
@@ -47,16 +56,16 @@ class	Arise( object ):
 				self.failed
 			)
 		)
-		fmt = '{{0:>{0}s}}  {{1}}'.format( width + 1 )
+		fmt = '{{0:<{0}s}}  {{1}}'.format( width + 1 )
 		# print 'fmt={0}'.format( fmt )
 		if len( self. failed ):
 			print
 			title = '*** FAILED ***'
 			print fmt.format( title, '' )
 			print fmt.format( '=' * len( title ), '' )
-			for host in sorted( self.failed ):
+			for host,output in self.which_hosts( passed = False ):
 				prefix = host
-				for line in self.failed[ host ].splitlines():
+				for line in output.splitlines():
 					print fmt.format( prefix, line )
 					prefix = ''
 		if len( self.succeeded ):
@@ -64,9 +73,9 @@ class	Arise( object ):
 			title = 'Succeeded'
 			print fmt.format( title, '' )
 			print fmt.format( '=' * len(title), '' )
-			for host in sorted( self.succeeded ):
+			for host,output in self.which_hosts():
 				prefix = host
-				for line in self.succeeded[ host ].splitlines():
+				for line in output.splitlines():
 					print fmt.format( prefix, line )
 					prefix = ''
 		return
